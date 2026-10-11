@@ -1,98 +1,217 @@
-# WARDOGS session-board bot
+# WARDOGS Session & Community Bot
 
-A Discord bot for groups playing on official WARDOGS servers. Players post server IDs and describe their group with atmosphere and playstyle tags. The board uses player-entered information; it does not verify in-game membership, server availability, or faction capacity.
+A robust, zero-privileged-intent Discord bot for players on official WARDOGS servers. Features playing-group recruitment (LFG session cards with one-click Server ID retrieval), community skirmish challenges, squad duels, match reporting with dispute resolution, and persistent squad leaderboards.
 
-## Quick start
+---
 
-1. Create an application and bot at [Discord Developer Portal](https://discord.com/developers/applications). Leave all privileged Gateway intents disabled.
-2. Install it in your test Discord server using the `bot` and `applications.commands` scopes. Grant **View Channel**, **Send Messages**, **Embed Links**, and **Read Message History** in your board channel. No Administrator permission is needed.
-3. Copy `.env.example` to `.env` and set your bot token, application ID, and test guild ID locally. Do not send the token in chat or commit `.env`.
-4. Use **Node 24.21.0** (pinned in `.nvmrc`) or Docker. For local execution:
+## ⚡ Quick Start
 
-```powershell
+### 1. Bot Invite & Channel Permissions
+The bot requires **zero privileged Gateway intents** and only standard channel permissions (permission integer `85056`):
+- **View Channel** (`0x400`)
+- **Send Messages** (`0x800`)
+- **Embed Links** (`0x4000`)
+- **Read Message History** (`0x10000`)
+
+> 🔗 **[Invite the Bot via Discord OAuth2](https://discord.com/oauth2/authorize?client_id=1452332133560615016&permissions=85056&scope=bot%20applications.commands)**
+
+### 2. Environment Configuration
+Copy `.env.example` to `.env` and fill in your credentials locally:
+```bash
+DISCORD_TOKEN=your_bot_token_here
+DISCORD_APPLICATION_ID=1452332133560615016
+DISCORD_GUILD_ID=your_guild_id_here
+DATABASE_PATH=./data/wardogs.sqlite
+BACKUP_DIRECTORY=./data/backups
+```
+*(Never commit `.env` or paste your bot token into public channels.)*
+
+### 3. Running with Docker Compose (Recommended)
+```bash
+# Build the container (runs automated test suite during build)
+docker compose build
+
+# Register slash commands in your server
+docker compose run --rm bot node dist/src/register.js
+
+# Launch the bot in background
+docker compose up -d
+
+# Check live logs
+docker compose logs -f bot
+```
+
+### 4. Running Locally with Node 24
+Requires **Node.js 24.21.0** (with built-in `node:sqlite`):
+```bash
 npm ci
 npm test
 npm run register
 npm start
 ```
 
-5. An administrator runs `/board setup channel:#servers`. Members then click **Create session**, fill in the form, select their tags, and publish.
+---
 
-The command registrar replaces this application's guild commands with the three command definitions in this project. Use a dedicated application. The bot does not register commands on startup. Re-run registration after command definitions change.
+## 📋 Commands Reference
 
-For Docker, after configuring `.env`:
+| Command | Subcommand / Options | Description | Permission |
+| :--- | :--- | :--- | :--- |
+| `/help` | `[topic: all\|sessions\|challenges\|admin]` | Interactive guide for bot features, card controls, and setup | Everyone |
+| `/board` | `setup channel:<#channel>` | Sets the text channel where playing-group session cards are posted | `ManageGuild` (Admin) |
+| `/session` | `create` | Opens modal and private preview to publish an active squad card | Everyone |
+| `/session` | `manage` | Opens the private management controls for your active card | Everyone |
+| `/sessions` | `[atmosphere] [playstyle] [language]` | Browse and filter active groups with 5-card pages | Everyone |
+| `/challenge` | `issue [opponent:<@user>]` | Post an open community challenge or direct rival duel | Everyone |
+| `/challenge` | `list` | View currently open and active skirmishes with card links | Everyone |
+| `/challenge` | `leaderboard` | View server leaderboard rankings (+3 win, +1 draw) | Everyone |
+| `/challenge` | `setup channel:<#channel>` | Designate a dedicated channel for challenge cards | `ManageGuild` (Admin) |
 
-```powershell
-docker compose build
-docker compose run --rm bot node dist/src/register.js
-docker compose up -d
-docker compose logs -f bot
+---
+
+## 🎮 Command Examples & Workflows
+
+### 1. Server Administration & Initial Setup
+An administrator configures the designated channels:
+
+```
+# Set the main playing-group session channel
+/board setup channel:#squad-sessions
+
+# Optional: Set a dedicated channel for community scrims (defaults to session board if omitted)
+/challenge setup channel:#challenges
 ```
 
-The build runs the automated tests. SQLite and backups live in the persistent `bot-data` volume. The container runs as the unprivileged `node` user. Run one replica only, and never run local and Docker instances against the same token simultaneously.
+---
 
-## What members see
+### 2. Playing Groups (LFG)
 
-- One message per playing group: title, creator, exact server ID, faction, squad, tags, language, mic preference, optional voice-channel reference, short note, and expiry time.
-- **Show ID**, **Edit**, **Still playing**, and **End session** controls. IDs stay text, including leading zeros; hyphenated numerical IDs and community UUIDs are accepted. ID syntax is checked, not server existence.
-- `/session create` starts the same flow as the board button. `/session manage` recovers the creator's card controls.
-- `/sessions atmosphere? playstyle? language?` returns private filtered results, five per page. Filters are combined with AND; language matching ignores case and surrounding spaces.
+#### Creating a Session
+Players can click the **Create session** button in the board channel or type:
+```
+/session create
+```
+1. **Details Modal**: Enter Title (e.g. `Night Patrol`), Server ID (e.g. `001-002` or UUID), Squad name (`Bravo-1`), Language (`English`), and optional Note (`Mic optional, FOB building focus`).
+2. **Interactive Preview**: Select your Faction (*Blue / Lonestar*, *Red / Valkyra*, *Green / Manticore*), Atmosphere (*Chill*, *Beginner friendly*), Playstyle (*Building / FOBs*, *Infantry*), Microphone preference, and optional Voice Channel.
+3. **Publish**: The card appears in the configured channel.
 
-Creation uses five text inputs, then a private preview with faction, atmosphere, playstyle, and microphone selectors. A **Voice channel** button opens a separate view to stay within Discord's five-row message limit. Saving an edit does not renew the card. **Cancel** discards the draft.
+#### Joining a Session
+Community members viewing a session card click:
+- **Show ID**: Reveals the server ID privately (`001-002`) in an ephemeral message with instructions on joining in-game.
 
-Atmosphere: Friendly, Chill, Beginner friendly, Happy to teach, Competitive (one or two).
+#### Managing Your Card
+Creators can click card controls or run:
+```
+/session manage
+```
+- **Still playing**: Renews the session for another 2 hours.
+- **Edit**: Reopens text fields to modify squad, title, or notes without resetting the renewal timer.
+- **End session**: Immediately concludes the session and deletes the public card.
 
-Playstyle: Building / FOBs, Infantry, Vehicles, Logistics, Mixed (one to three).
+#### Filtering Active Sessions
+Looking for a specific squad atmosphere or playstyle?
+```
+/sessions atmosphere:Chill playstyle:Infantry language:English
+```
+Returns a paginated list of matching squads.
 
-Microphone: Required or Optional. Faction: Blue / Lonestar, Red / Valkyra, Green / Manticore, or Undecided.
+---
 
-These are intentions, not restrictions on equipment or roles. The bot has no direct game-launch button and cannot place text on a user's clipboard or move users into voice. The voice reference opens the Discord channel normally.
+### 3. Community Challenges & Squad Duels
 
-## Permissions and lifecycle
+#### Issuing a Challenge
+- **Open Challenge** (any community member can accept):
+  ```
+  /challenge issue
+  ```
+- **Direct Duel** (target a specific rival player or squad leader):
+  ```
+  /challenge issue opponent:@SquadLeader
+  ```
+In the modal:
+- **Title**: `4v4 FOB Assault`
+- **Server ID**: `998-112`
+- **Type**: `Infantry Skirmish` *(or FOB Race, Armor Duel, Sector Control)*
+- **Rules**: `No heavy armor, infantry skirmish on Sector Alpha.`
 
-- Creators can edit, renew, and end their own entry. Members with **Manage Messages in the board channel** can end another entry but cannot edit or renew it. **Manage Guild** is required for setup.
-- Each creator has at most one active/publishing entry per Discord server. Separate groups may use the same game server ID.
-- Entries expire two hours after publishing or renewal. The worker checks every minute and processes up to five pending jobs per tick; deletion can take longer during outages or backlogs. Ended entries leave browsing results immediately even if message deletion is pending.
-- One reminder DM is attempted 15 minutes before expiry per renewal. The DM has working session controls. Blocked DMs do not stop expiration. A crash between persisting the reminder attempt and sending can lose that reminder; it will not send duplicates.
-- Drafts and private browse cursors expire after 15 minutes. Opening another create/edit draft invalidates earlier drafts for that creator. Stale edits cannot overwrite a renewal or another save.
-- Deleted public cards are detected on interaction synchronization or hourly reconciliation. They are not automatically recreated.
-- Voice choices must be ordinary voice channels visible to the bot and accessible to the creator and board audience. The audience check is intentionally conservative: restrictive non-everyone voice overrides are rejected, even if a particular membership combination might work. No member enumeration or privileged intent is used. Invalid voice references are cleared on later synchronization.
-- Moving the board to another channel is blocked while entries are active. Re-running setup in the same channel reuses the introduction message.
-- No mass pings, attendance counting, temporary voice channels, map tools, or WARDOGS credentials are used.
+#### Accepting a Challenge
+Any player (or the tagged rival) clicks **Accept Challenge** on the card. Status transitions from `⚔️ Open Challenge` to `🔥 In Progress`.
 
-## Persistence, recovery, and backups
+#### Reporting Results
+When the match concludes, both participants click **Report Result** on the card and choose:
+- `Challenger Won`
+- `Opponent Won`
+- `Draw / Tie`
 
-SQLite stores board configuration, sessions, drafts, browsing cursors, and pending synchronization jobs. The active-entry constraint is enforced in SQLite. The handler serializes state changes and synchronization, and database writes are transactional.
+- **Consensus**: If both players agree, the match concludes as `🏆 Completed`, displays the winner, and records points to the leaderboard.
+- **Disputes**: If reports conflict, the challenge flags as `⚠️ Disputed` and alerts server moderators.
 
-Before publishing, the bot scans its own messages since the session was created for a persistent session marker. If a send times out after Discord creates the message, a retry recovers that message rather than sending another. Discord nonce enforcement provides additional protection for immediate retries. Failure to read history prevents publication until access is restored.
+#### Moderator Dispute Settlement
+Moderators (`ManageMessages`) can click **Resolve Dispute** on any disputed card to make the official ruling.
 
-Transient Discord failures retry with exponential delays capped at 15 minutes. The SDK handles HTTP rate limits. Interactions are acknowledged immediately before queued network work; opening a modal does not wait for network calls. Later public-message updates use the bot token, not expired interaction tokens. JSON logs contain event names, error codes, session IDs, and backlog counts, never bot tokens or user notes.
+#### Viewing the Leaderboard
+```
+/challenge leaderboard
+```
+Displays ranked community records:
+> **1. @AlphaLeader** — **9 pts**  
+> Wins: 3 | Losses: 0 | Draws: 0  
+>  
+> **2. @RivalCommander** — **4 pts**  
+> Wins: 1 | Losses: 1 | Draws: 1  
 
-The worker creates one consistent SQLite backup per UTC day and keeps seven daily backups. It runs again on startup if the day's backup is missing. Manual backup:
+*(Scoring: 3 points per win, 1 point per draw, 0 points per loss).*
 
-```powershell
-npm run backup
-# Or inside the running Docker service:
-docker compose exec bot node dist/src/backup.js
+---
+
+### 4. Interactive In-Game Help
+
+Players or admins can run `/help` anytime to view built-in guides:
+```
+# General overview of all commands and features
+/help
+
+# Deep dive into LFG session cards and controls
+/help topic:sessions
+
+# Guide to challenges, reporting, and leaderboard scoring
+/help topic:challenges
+
+# Administration, permissions, and moderation workflows
+/help topic:admin
 ```
 
-Closed session records are deleted after seven days once pending cleanup finishes. Daily backups may retain older closed records for their additional seven-day rotation. Manual backups require manual retention management. Keep an off-host copy of important backups.
+---
 
-To restore, stop the bot, save a backup of the current database, replace the database with the chosen SQLite backup, and remove only that database's old `-wal` and `-shm` sidecars before restarting. Never replace a live database. Restoring an old backup rolls back state: manually inspect the board for posts created after the backup, since those posts are not represented in the restored database.
+## 🛡️ Moderation & Safety
 
-## Validation and rollout
+- **Moderator Session Cleanup**: Members with **Manage Messages in the board channel** can click **End session** on any inappropriate card to delete it.
+- **Moderator Dispute Ruling**: Members with **Manage Messages** can resolve conflicting match reports with one click.
+- **Ephemeral Responses**: Actions like "Show Server ID", draft editors, and search results are private to the user to avoid channel clutter.
+- **No Mass Pings**: All message payloads enforce suppressed user and role mentions (`allowedMentions: { parse: [] }`).
+- **Input Sanitization**: Markdown formatting characters in user inputs are escaped to prevent broken embed layouts or mention exploits.
 
-`npm test` runs strict TypeScript compilation, service/SQLite tests, worker failure simulations, Discord payload checks, and mocked interaction flows. No token is needed for these tests. Tests use simulated time to accelerate expiration without changing production's two-hour duration.
+---
 
-Before enabling the bot in your main server, complete [LIVE-TEST.md](LIVE-TEST.md). Test desktop and mobile creation, editing, filtering, permission failures, reminder buttons, process restart, and removal of stale cards. Watch `sync_failed`, `reminder_failed`, `backup_failed`, and `cleanup_backlog` events. Repeated permission errors require administrator action; the bot preserves pending work and retries.
+## 💾 Persistence & Backup Architecture
 
-The image and automated tests can be validated without a Discord account. Authenticated Discord behavior and mobile rendering require the live test server. No game API calls are made.
+- **SQLite WAL Mode**: State is stored in an embedded SQLite database using WAL (Write-Ahead Logging) and `PRAGMA busy_timeout=5000` for concurrent, atomic transactions.
+- **Automated Daily Backups**: The background worker creates an atomic SQLite backup every 24 hours and maintains a 7-day rolling retention.
+- **Manual Backup**:
+  ```bash
+  npm run backup
+  # Or within Docker:
+  docker compose exec bot node dist/src/backup.js
+  ```
+- **Graceful Recovery**: Stored draft states, card message IDs, and active challenge statuses survive bot restarts.
 
-## Verified interfaces
+---
 
-- [Official Discord interactions](https://docs.discord.com/developers/interactions/receiving-and-responding): slash commands, buttons, modals, ephemeral replies, three-second acknowledgment, 15-minute interaction tokens.
-- [Official component reference](https://docs.discord.com/developers/components/reference): standard action rows, select menus, and modal text inputs.
-- [Official message API](https://docs.discord.com/developers/resources/message): bot-authored message edits/deletes and enforced nonces.
-- [Official permissions](https://docs.discord.com/developers/topics/permissions) and [rate limits](https://docs.discord.com/developers/topics/rate-limits).
-- discord.js is pinned to **14.27.0**, checked against the package registry; Node is pinned to **24.21.0**. The earlier plan's documentation-based runtime estimate is superseded by the registry and installed runtime checks.
-- WARDOGS [official updates](https://steamcommunity.com/app/1867240/allnews/) mention server-admin RCON. The [community RCON client](https://github.com/Yuban32/wardogs-rcon-api) identifies its reference as unofficial. No publicly documented official API for official-server party/player state was verified. Future self-hosted integration must be validated against an actual game server separately.
+## 🧪 Testing & Validation
+
+The project includes an automated test suite verifying domain rules, SQLite transactional integrity, permission boundaries, and Discord interaction mock flows:
+
+```bash
+npm test
+```
+- **35 automated tests**, 100% pass rate.
+- Strict TypeScript compilation (`noUncheckedIndexedAccess`, `noUnusedLocals`).

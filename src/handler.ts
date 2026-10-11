@@ -4,7 +4,7 @@ import { ATMOSPHERES, FACTIONS, MICROPHONES, PLAYSTYLES, DRAFT_MS, type Challeng
   noMentions, validateChoice, validateTags, type Draft } from './domain.js';
 import { Store } from './store.js';
 import { DiscordTransport, validateVoice } from './discord.js';
-import { browseMessage, button, card, challengeCard, challengeModal, detailsModal, leaderboardMessage, preview, reportResultButtons } from './ui.js';
+import { browseMessage, button, card, challengeCard, challengeModal, detailsModal, helpMessage, leaderboardMessage, preview, reportResultButtons } from './ui.js';
 import { Serial, Worker, errorCode, log } from './worker.js';
 
 export class Handler {
@@ -88,6 +88,10 @@ export class Handler {
     const now = Date.now(); this.store.sweep(now);
     if (i.isChatInputCommand()) {
       if (!i.guildId) throw new UserError('Use this command in a Discord server.');
+      if (i.commandName === 'help') {
+        const topic = i.options.getString('topic') ?? 'all';
+        await i.editReply(helpMessage(topic)); return;
+      }
       if (i.commandName === 'board') {
         if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) throw new UserError('Board setup requires Manage Guild.');
         const selected = i.options.getChannel('channel', true);

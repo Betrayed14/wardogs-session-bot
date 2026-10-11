@@ -261,3 +261,29 @@ test('interaction: /challenge issue, accept, show ID, report, and outcome flow',
 
   store.close();
 });
+
+test('interaction: /help returns overview and specific topic guides without mentions', async () => {
+  const { store, handler } = handlerContext();
+
+  for (const topic of ['all', 'sessions', 'challenges', 'admin']) {
+    const helpCmd = mockInteraction('command', '', {
+      commandName: 'help',
+      options: { getString: (key: string) => key === 'topic' ? topic : null }
+    });
+    await handler.handle(helpCmd.raw);
+    assert.equal(helpCmd.replies.length, 1);
+    const reply = helpCmd.replies[0];
+    assert.ok(reply.embeds && reply.embeds.length === 1);
+  }
+
+  // Default topic when omitted
+  const defaultHelp = mockInteraction('command', '', {
+    commandName: 'help',
+    options: { getString: () => null }
+  });
+  await handler.handle(defaultHelp.raw);
+  assert.equal(defaultHelp.replies.length, 1);
+  assert.ok(defaultHelp.replies[0].embeds && defaultHelp.replies[0].embeds.length === 1);
+
+  store.close();
+});

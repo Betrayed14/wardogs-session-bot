@@ -20,4 +20,12 @@ export const commands = [
     .addSubcommand(s => s.setName('leaderboard').setDescription('View community challenge rankings'))
     .addSubcommand(s => s.setName('setup').setDescription('Configure dedicated channel for challenge cards')
       .addChannelOption(o => o.setName('channel').setDescription('Channel for challenge cards').setRequired(true).addChannelTypes(ChannelType.GuildText))),
+  new SlashCommandBuilder().setName('help').setDescription('Learn how to use WARDOGS bot commands and features').setDMPermission(false)
+    .addStringOption(o => o.setName('topic').setDescription('Specific topic to learn about').setRequired(false)
+      .addChoices(
+        { name: 'Overview / All Topics', value: 'all' },
+        { name: 'Playing Groups (LFG)', value: 'sessions' },
+        { name: 'Community Challenges & Duels', value: 'challenges' },
+        { name: 'Administration & Setup', value: 'admin' },
+      )),
 ].map(c => c.toJSON());

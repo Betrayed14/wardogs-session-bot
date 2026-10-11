@@ -196,3 +196,108 @@ export function leaderboardMessage(stats: SquadStats[]) {
     .setFooter({ text: '3 pts per win · 1 pt per draw' });
   return { embeds: [embed], components: [], allowedMentions: noMentions };
 }
+
+export function helpMessage(topic: string = 'all') {
+  if (topic === 'sessions') {
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle('🎮 Playing Groups (LFG) Guide')
+      .setDescription('How to post, find, and join playing groups on official WARDOGS servers.')
+      .addFields(
+        {
+          name: '1. Posting a Session',
+          value: '• Click **Create session** on the board channel, or run `/session create`.\n• Enter your **Title**, **Server ID**, **Squad name**, **Language**, and optional **Note**.\n• In the private preview, choose **Faction**, **Atmosphere**, **Playstyle**, **Microphone**, and optional **Voice channel**.\n• Click **Publish** to post your card to the board channel.'
+        },
+        {
+          name: '2. Card Controls & Expiration',
+          value: '• **Show ID**: Privately reveals the in-game server ID without leaving Discord.\n• **Still playing**: Renews your card for another 2 hours. Cards expire in 2 hours if not renewed.\n• **Edit**: Reopen the text form to update squad, title, or notes.\n• **End session**: Immediately closes your group and removes the card.\n• **DM Reminders**: The bot sends a private DM reminder 15 minutes before expiry with quick renewal buttons.'
+        },
+        {
+          name: '3. Searching & Managing',
+          value: '• `/sessions atmosphere:Chill playstyle:Infantry language:English`: Search active cards with instant filters.\n• `/session manage`: Open controls for your currently active card if you lost track of it.'
+        }
+      )
+      .setFooter({ text: 'Use /help for the main guide.' });
+    return { embeds: [embed], components: [], allowedMentions: noMentions };
+  }
+
+  if (topic === 'challenges') {
+    const embed = new EmbedBuilder()
+      .setColor(0xe67e22)
+      .setTitle('⚔️ Community Challenges & Duels Guide')
+      .setDescription('How to issue scrims, challenge rival squads, report results, and compete on the leaderboard.')
+      .addFields(
+        {
+          name: '1. Issuing a Challenge',
+          value: '• Run `/challenge issue`.\n• *(Optional)* Tag a rival user in `opponent` for a direct duel, or leave empty for an open community challenge.\n• Enter Title, Server ID, Skirmish Type (e.g. *Infantry Skirmish*, *FOB Race*, *Armor Duel*), and custom Rules.'
+        },
+        {
+          name: '2. Accepting & Connecting',
+          value: '• Any member (or the designated rival) clicks **Accept Challenge** on the card.\n• Click **Show Server ID** to reveal the in-game server ID.\n• In WARDOGS, open the Server Browser, choose **Join by ID**, and connect!'
+        },
+        {
+          name: '3. Reporting Results & Disputes',
+          value: '• When the battle finishes, both participants click **Report Result** and choose the winner or draw.\n• **Consensus**: When both reports agree, the card displays the winner and awards points!\n• **Dispute**: Conflicting reports flag the card as **⚠️ Disputed**, unlocking a **Resolve Dispute** panel for moderators.'
+        },
+        {
+          name: '4. Leaderboard & Points',
+          value: '• **Win**: +3 points | **Draw**: +1 point | **Loss**: 0 points\n• Run `/challenge leaderboard` to see the top ranked squads and players in the server.'
+        }
+      )
+      .setFooter({ text: 'Use /help for the main guide.' });
+    return { embeds: [embed], components: [], allowedMentions: noMentions };
+  }
+
+  if (topic === 'admin') {
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('⚙️ Administration & Moderation Guide')
+      .setDescription('Channel setup instructions, bot permissions, and moderation workflows.')
+      .addFields(
+        {
+          name: '1. Channel Setup Commands',
+          value: '• `/board setup channel:#lfg-sessions`: Sets the channel where session cards are posted. *(Requires Manage Guild)*\n• `/challenge setup channel:#challenges`: Sets a dedicated channel for community challenges. If omitted, challenges post to the session board. *(Requires Manage Guild)*'
+        },
+        {
+          name: '2. Required Bot Permissions',
+          value: 'The bot requires standard channel permissions (integer `85056`):\n• **View Channel**, **Send Messages**, **Embed Links**, **Read Message History**\n• **Zero privileged Gateway intents** needed! No Administrator permission required.'
+        },
+        {
+          name: '3. Moderation Controls',
+          value: '• **End Sessions**: Members with `Manage Messages` in the board channel can click **End session** on any inappropriate card to delete it.\n• **Dispute Settlement**: Members with `Manage Messages` can click **Resolve Dispute** on disputed challenge cards to make the official ruling.'
+        },
+        {
+          name: '4. Backups & Safety',
+          value: '• Automatic daily atomic SQLite WAL backups with 7-day rotation.\n• Manual backups via `npm run backup`.'
+        }
+      )
+      .setFooter({ text: 'Use /help for the main guide.' });
+    return { embeds: [embed], components: [], allowedMentions: noMentions };
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle('📖 WARDOGS Bot — Commands & Features Guide')
+    .setDescription('Welcome to the WARDOGS Session & Challenge Bot! Below is a quick overview of all commands and features. Use `/help topic:<name>` for in-depth guides.')
+    .addFields(
+      {
+        name: '🎮 Playing Groups (LFG)',
+        value: '• `/session create` — Post where your group is playing\n• `/session manage` — Reopen controls for your active card\n• `/sessions [filters]` — Search active groups (atmosphere, playstyle, language)\n• *Board Button* — Click **Create session** directly in the board channel'
+      },
+      {
+        name: '⚔️ Community Challenges & Duels',
+        value: '• `/challenge issue [opponent]` — Issue an open challenge or squad duel\n• `/challenge list` — List open and active skirmishes\n• `/challenge leaderboard` — View ranked community scores (+3 win, +1 draw)\n• *Reporting* — Dual-confirmation reporting with moderator dispute resolution'
+      },
+      {
+        name: '⚙️ Server Administration',
+        value: '• `/board setup channel:#chan` — Configure the session board channel\n• `/challenge setup channel:#chan` — Configure dedicated challenge channel'
+      },
+      {
+        name: '💡 Quick Help Topics',
+        value: '• `/help topic:sessions` — Detailed guide to LFG cards & controls\n• `/help topic:challenges` — Detailed guide to challenges & scoring\n• `/help topic:admin` — Permissions, channel configuration & moderation'
+      }
+    )
+    .setFooter({ text: 'WARDOGS Session Bot · 3 pts per win · 1 pt per draw' });
+  return { embeds: [embed], components: [], allowedMentions: noMentions };
+}
+
