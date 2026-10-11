@@ -1,0 +1,16 @@
+{
+  "name": "wardogs-session-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.21.0 <25" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "start": "node --env-file-if-exists=.env dist/src/main.js",
+    "register": "node --env-file-if-exists=.env dist/src/register.js",
+    "backup": "node --env-file-if-exists=.env dist/src/backup.js"
+  },
+  "dependencies": { "discord.js": "14.27.0" },
+  "devDependencies": { "@types/node": "24.19.2", "typescript": "5.9.3" }
+}

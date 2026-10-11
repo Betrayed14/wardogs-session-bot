@@ -1,0 +1,17 @@
+[Unit]
+Description=WARDOGS Session-Board Discord Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/warbot/wardogs-session-bot
+ExecStart=/usr/local/bin/node --env-file-if-exists=.env dist/src/main.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=DATABASE_PATH=/opt/warbot/wardogs-session-bot/data/wardogs.sqlite
+Environment=BACKUP_DIRECTORY=/opt/warbot/wardogs-session-bot/data/backups
+
+[Install]
+WantedBy=multi-user.target
