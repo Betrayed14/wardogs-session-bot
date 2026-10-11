@@ -15,6 +15,29 @@ export const commands = [
     .addStringOption(o => o.setName('language').setDescription('Language (exact match, ignoring case)').setMaxLength(40)),
   new SlashCommandBuilder().setName('challenge').setDescription('Issue or browse community challenges and leaderboard').setDMPermission(false)
     .addSubcommand(s => s.setName('issue').setDescription('Issue a new challenge to community members')
+      .addStringOption(o => o.setName('activity').setDescription('Activity type (Grenade Kills, C4 Kills, Helis, etc.)').setRequired(false)
+        .addChoices(
+          { name: '💣 Grenade Kills', value: 'Grenade Kills' },
+          { name: '💥 C4 Explosive Kills', value: 'C4 Explosive Kills' },
+          { name: '🚐 Spawn Vehicles Destroyed', value: 'Spawn Vehicles Destroyed' },
+          { name: '🚜 Vehicles Destroyed', value: 'Vehicles Destroyed' },
+          { name: '🚁 Helicopters Destroyed', value: 'Helicopters Destroyed' },
+          { name: '🎯 Hotzone Kills', value: 'Hotzone Kills' },
+          { name: '⚔️ Infantry Frags', value: 'Infantry Frags' },
+          { name: '🔥 Combat Killstreak', value: 'Combat Killstreak' },
+          { name: '🩺 Combat Revives', value: 'Combat Revives' },
+          { name: '❤️‍🩹 Hotzone Rescues', value: 'Hotzone Rescues' },
+          { name: '🏗️ FOBs Deployed', value: 'FOBs Deployed' },
+          { name: '🧱 Fortifications Built', value: 'Fortifications Built' },
+          { name: '🧨 Enemy FOBs Demolished', value: 'Enemy FOBs Demolished' },
+          { name: '📦 Supplies Delivered', value: 'Supplies Delivered' },
+          { name: '🔭 Long-Range Sniper Kills', value: 'Long-Range Sniper Kills' },
+          { name: '👁️ Targets Spotted', value: 'Targets Spotted' },
+          { name: '🪂 Hotzone Troop Drops', value: 'Hotzone Troop Drops' },
+          { name: '💰 Match Cash Earned', value: 'Match Cash Earned' },
+          { name: '🎖️ Bounties Claimed', value: 'Bounties Claimed' },
+        ))
+      .addIntegerOption(o => o.setName('target').setDescription('Target goal to win (e.g. 5 or 10; leave empty for high score duel)').setRequired(false).setMinValue(1).setMaxValue(100000))
       .addUserOption(o => o.setName('opponent').setDescription('Target opponent (optional, leave empty for open challenge)').setRequired(false)))
     .addSubcommand(s => s.setName('list').setDescription('List active and open challenges'))
     .addSubcommand(s => s.setName('leaderboard').setDescription('View community challenge rankings'))

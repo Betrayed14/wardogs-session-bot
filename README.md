@@ -118,20 +118,38 @@ Returns a paginated list of matching squads.
 
 ### 3. Community Challenges & Squad Duels
 
+#### Supported In-Game Activities
+Challenges can be issued for specific playstyle metrics and combat feats:
+- 💣 **Grenade Kills**: Frag and explosive grenade eliminations
+- 💥 **C4 Explosive Kills**: Plastic explosive detonations and breach kills
+- 🚐 **Spawn Vehicles Destroyed**: Mobile spawn trucks, APCs, and spawn beacons neutralized
+- 🚜 **Vehicles Destroyed**: Enemy ground vehicles, tanks, and technicals destroyed
+- 🚁 **Helicopters Destroyed**: Transport and attack helicopters shot down
+- 🎯 **Hotzone Kills**: Kills scored inside the central contested Control Zone
+- ⚔️ **Infantry Frags** & 🔥 **Combat Killstreaks**: Frontline assault rifle frags and survival streaks
+- 🩺 **Combat Revives** & ❤️‍🩹 **Hotzone Rescues**: Defibrillator revives under fire
+- 🏗️ **FOBs Deployed**, 🧱 **Fortifications Built**, 🧨 **Enemy FOBs Demolished**: Builder & logistics combat
+- 🔭 **Long-Range Sniper Kills** & 👁️ **Targets Spotted**: Recon and marksman intel
+- 💰 **Match Cash Earned** & 🎖️ **Bounties Claimed**: Mercenary economy and high-roller earnings
+
 #### Issuing a Challenge
-- **Open Challenge** (any community member can accept):
+- **Combat Activity Race** (First to 10 Grenade Kills):
   ```
-  /challenge issue
+  /challenge issue activity:"💣 Grenade Kills" target:10 opponent:@SquadLeader
   ```
-- **Direct Duel** (target a specific rival player or squad leader):
+- **Demolition Duel** (First to 5 C4 Kills):
   ```
-  /challenge issue opponent:@SquadLeader
+  /challenge issue activity:"💥 C4 Explosive Kills" target:5
   ```
-In the modal:
-- **Title**: `4v4 FOB Assault`
-- **Server ID**: `998-112`
-- **Type**: `Infantry Skirmish` *(or FOB Race, Armor Duel, Sector Control)*
-- **Rules**: `No heavy armor, infantry skirmish on Sector Alpha.`
+- **Anti-Vehicle Skirmish** (Destroy 2 Helicopters or 3 Spawn Vehicles):
+  ```
+  /challenge issue activity:"🚁 Helicopters Destroyed" target:2
+  /challenge issue activity:"🚐 Spawn Vehicles Destroyed" target:3
+  ```
+- **High-Score Duel** (leave target empty for highest count in match):
+  ```
+  /challenge issue activity:"🚜 Vehicles Destroyed"
+  ```
 
 #### Accepting a Challenge
 Any player (or the tagged rival) clicks **Accept Challenge** on the card. Status transitions from `⚔️ Open Challenge` to `🔥 In Progress`.

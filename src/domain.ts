@@ -12,10 +12,65 @@ export const CHALLENGE_TYPES = ['Infantry Skirmish', 'FOB Race', 'Vehicle Duel',
 export const CHALLENGE_MS = 24 * 60 * 60 * 1000;
 export const noMentions = { parse: [] as never[], repliedUser: false };
 
+export interface ActivitySpec {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+  emoji: string;
+}
+
+export const CHALLENGE_ACTIVITIES: ActivitySpec[] = [
+  // Assault & Demolitions
+  { id: 'grenade_kills', name: 'Grenade Kills', category: 'Assault', unit: 'kills', emoji: '💣' },
+  { id: 'c4_kills', name: 'C4 Explosive Kills', category: 'Assault', unit: 'kills', emoji: '💥' },
+  { id: 'hotzone_kills', name: 'Hotzone Kills', category: 'Assault', unit: 'kills', emoji: '🎯' },
+  { id: 'infantry_frags', name: 'Infantry Frags', category: 'Assault', unit: 'kills', emoji: '⚔️' },
+  { id: 'killstreak', name: 'Combat Killstreak', category: 'Assault', unit: 'streak', emoji: '🔥' },
+
+  // Vehicles & Anti-Armor
+  { id: 'spawn_vehicles_destroyed', name: 'Spawn Vehicles Destroyed', category: 'Vehicles', unit: 'spawn vehicles', emoji: '🚐' },
+  { id: 'vehicles_destroyed', name: 'Vehicles Destroyed', category: 'Vehicles', unit: 'vehicles', emoji: '🚜' },
+  { id: 'helis_destroyed', name: 'Helicopters Destroyed', category: 'Vehicles', unit: 'helis', emoji: '🚁' },
+  { id: 'troop_drops', name: 'Hotzone Troop Drops', category: 'Vehicles', unit: 'drops', emoji: '🪂' },
+
+  // Support & Builder
+  { id: 'fobs_built', name: 'FOBs Deployed', category: 'Support', unit: 'FOBs', emoji: '🏗️' },
+  { id: 'fortifications_built', name: 'Fortifications Built', category: 'Support', unit: 'structures', emoji: '🧱' },
+  { id: 'supplies_delivered', name: 'Supplies Delivered', category: 'Support', unit: 'crates', emoji: '📦' },
+  { id: 'fobs_demolished', name: 'Enemy FOBs Demolished', category: 'Support', unit: 'FOBs', emoji: '🧨' },
+
+  // Medic
+  { id: 'revives', name: 'Combat Revives', category: 'Medic', unit: 'revives', emoji: '🩺' },
+  { id: 'hotzone_revives', name: 'Hotzone Rescues', category: 'Medic', unit: 'revives', emoji: '❤️‍🩹' },
+
+  // Recon
+  { id: 'sniper_kills', name: 'Long-Range Sniper Kills', category: 'Recon', unit: 'kills', emoji: '🔭' },
+  { id: 'targets_spotted', name: 'Targets Spotted', category: 'Recon', unit: 'spots', emoji: '👁️' },
+
+  // Economy
+  { id: 'cash_earned', name: 'Match Cash Earned', category: 'Economy', unit: '$ cash', emoji: '💰' },
+  { id: 'bounties_claimed', name: 'Bounties Claimed', category: 'Economy', unit: 'bounties', emoji: '🎖️' },
+
+  // Skirmish Formats
+  { id: 'infantry_skirmish', name: 'Infantry Skirmish', category: 'General', unit: 'rounds', emoji: '⚔️' },
+  { id: 'fob_race', name: 'FOB Race', category: 'General', unit: 'FOBs', emoji: '🏗️' },
+  { id: 'vehicle_duel', name: 'Vehicle Duel', category: 'General', unit: 'vehicles', emoji: '🚜' },
+  { id: 'dogfight', name: 'Dogfight', category: 'General', unit: 'helis', emoji: '🚁' },
+  { id: 'mixed_warfare', name: 'Mixed Warfare', category: 'General', unit: 'points', emoji: '🛡️' },
+];
+
+export function findActivity(nameOrId: string): ActivitySpec {
+  const norm = nameOrId.toLowerCase().trim();
+  const match = CHALLENGE_ACTIVITIES.find(a => a.id === norm || a.name.toLowerCase() === norm);
+  if (match) return match;
+  return { id: 'custom', name: nameOrId, category: 'Custom', unit: 'points', emoji: '⚔️' };
+}
+
 export type ChallengeState = 'open' | 'accepted' | 'completed' | 'disputed' | 'withdrawn' | 'expired';
 export type ReportOutcome = 'issuer_win' | 'opponent_win' | 'draw';
 export interface ChallengeDetails {
-  title: string; type: string; serverId: string; rules: string; targetOpponentId: string | null;
+  title: string; type: string; targetValue?: number | null; serverId: string; rules: string; targetOpponentId: string | null;
 }
 export interface Challenge {
   id: string; guildId: string; issuerId: string; opponentId: string | null;
@@ -92,9 +147,17 @@ export function validateChallengeDetails(details: ChallengeDetails): ChallengeDe
   const serverId = bounded(details.serverId, 'Server ID', 64, true);
   if (!/^(?:\d+(?:-\d+)*|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(serverId))
     throw new UserError('Enter a numerical server ID (hyphen-separated digits are accepted), or a community-server UUID.');
-  validateChoice(details.type, CHALLENGE_TYPES, 'challenge type');
+  const norm = details.type.toLowerCase().trim();
+  const valid = CHALLENGE_ACTIVITIES.some(a => a.id === norm || a.name.toLowerCase() === norm);
+  if (!valid) throw new UserError('Unknown challenge activity or skirmish type.');
   const rules = bounded(details.rules, 'Rules', 300, false);
-  return { ...details, title, serverId, rules };
+  let targetValue = details.targetValue ?? null;
+  if (targetValue !== null && targetValue !== undefined) {
+    targetValue = Number(targetValue);
+    if (!Number.isFinite(targetValue) || targetValue <= 0 || targetValue > 100000)
+      throw new UserError('Target goal must be a positive number up to 100,000.');
+  }
+  return { ...details, title, serverId, rules, targetValue };
 }
 export function authorize(session: Session, guildId: string, userId: string, moderator = false, action = 'manage') {
   if (session.guildId !== guildId || (session.ownerId !== userId && !(moderator && action === 'end')))

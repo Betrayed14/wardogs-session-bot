@@ -18,8 +18,10 @@ export class Handler {
         if (!interaction.guildId) throw new UserError('Issue challenges in your Discord server.');
         const channelId = this.store.challengeBoard(interaction.guildId) ?? this.store.board(interaction.guildId)?.channelId;
         if (!channelId) throw new UserError('An administrator must first run /board setup or /challenge setup.');
-        const target = interaction.options.getUser('opponent');
-        await interaction.showModal(challengeModal(target?.id)); return;
+        const target = interaction.options.getUser?.('opponent');
+        const activity = interaction.options.getString?.('activity') ?? undefined;
+        const targetGoal = interaction.options.getInteger?.('target') ?? undefined;
+        await interaction.showModal(challengeModal(target?.id, activity, targetGoal)); return;
       }
       if ((interaction.isChatInputCommand() && interaction.commandName === 'session' && interaction.options.getSubcommand() === 'create') ||
         (interaction.isButton() && interaction.customId === 'board:create')) {
@@ -152,8 +154,17 @@ export class Handler {
         const serverId = i.fields.getTextInputValue('serverId');
         const type = i.fields.getTextInputValue('type');
         const rules = i.fields.getTextInputValue('rules');
-        const opponent = i.fields.getTextInputValue('opponent')?.trim() || null;
-        const ch = this.store.createChallenge(guildId, i.user.id, { title, serverId, type, rules, targetOpponentId: opponent }, now);
+        let opponent = parts[3]?.trim() || null;
+        try {
+          const rawOpponent = i.fields.getTextInputValue('opponent')?.trim();
+          if (rawOpponent) opponent = rawOpponent;
+        } catch { /* optional */ }
+        let targetValue: number | null = null;
+        try {
+          const rawTarget = i.fields.getTextInputValue('target')?.trim();
+          if (rawTarget && /^\d+$/.test(rawTarget)) targetValue = parseInt(rawTarget, 10);
+        } catch { /* optional */ }
+        const ch = this.store.createChallenge(guildId, i.user.id, { title, serverId, type, rules, targetOpponentId: opponent, targetValue }, now);
         try {
           const chan = await this.transport.channel(ch.channelId!);
           const msg = await chan.send(challengeCard(ch));

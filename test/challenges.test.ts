@@ -6,6 +6,7 @@ import { Store } from '../src/store.js';
 import { Handler } from '../src/handler.js';
 import { DiscordTransport } from '../src/discord.js';
 import { Worker, Serial, type Transport } from '../src/worker.js';
+import { challengeCard } from '../src/ui.js';
 
 const T = Date.UTC(2026, 9, 11, 15);
 
@@ -287,3 +288,39 @@ test('interaction: /help returns overview and specific topic guides without ment
 
   store.close();
 });
+
+test('activities: supports grenade kills, C4 kills, vehicles, helis, spawn vehicles with race goals', () => {
+  const store = new Store(':memory:');
+  store.setBoard({ guildId: 'g', channelId: 'c', messageId: 'm' });
+
+  const activitiesToTest = [
+    { type: 'Grenade Kills', targetValue: 10, expectedUnit: 'kills' },
+    { type: 'C4 Explosive Kills', targetValue: 5, expectedUnit: 'kills' },
+    { type: 'Spawn Vehicles Destroyed', targetValue: 3, expectedUnit: 'spawn vehicles' },
+    { type: 'Vehicles Destroyed', targetValue: 6, expectedUnit: 'vehicles' },
+    { type: 'Helicopters Destroyed', targetValue: 2, expectedUnit: 'helis' },
+  ];
+
+  for (const item of activitiesToTest) {
+    const ch = store.createChallenge('g', 'uIssuer', validDetails({
+      title: `${item.targetValue} ${item.type} Race`,
+      type: item.type,
+      targetValue: item.targetValue
+    }), T);
+    assert.equal(ch.details.type, item.type);
+    assert.equal(ch.details.targetValue, item.targetValue);
+
+    // Verify card display
+    const rendered = challengeCard(ch);
+    const activityField = (rendered.embeds[0] as { toJSON(): { fields: { name: string; value: string }[] } }).toJSON().fields.find(f => f.name === 'Activity')!;
+    assert.ok(activityField.value.includes(item.type));
+    assert.ok(activityField.value.includes(`First to ${item.targetValue} ${item.expectedUnit}`));
+  }
+
+  // Target value boundary checks
+  assert.throws(() => store.createChallenge('g', 'u', validDetails({ targetValue: -5 }), T), /Target goal must be a positive number/);
+  assert.throws(() => store.createChallenge('g', 'u', validDetails({ targetValue: 9999999 }), T), /Target goal must be a positive number/);
+
+  store.close();
+});
+

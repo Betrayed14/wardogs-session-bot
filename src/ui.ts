@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ChannelType, EmbedBuilder,
   ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { ATMOSPHERES, FACTIONS, MICROPHONES, PLAYSTYLES, escapeText, noMentions, paginate,
+import { ATMOSPHERES, FACTIONS, MICROPHONES, PLAYSTYLES, escapeText, findActivity, noMentions, paginate,
   type Browse, type Challenge, type Details, type Draft, type Session, type SquadStats } from './domain.js';
 
 export function button(customId: string, label: string, style = ButtonStyle.Secondary) {
@@ -138,13 +138,16 @@ export function challengeCard(ch: Challenge) {
     withdrawn: 'Cancelled',
     expired: 'Expired'
   };
+  const activity = findActivity(ch.details.type);
+  const targetLabel = ch.details.targetValue ? `🏁 First to ${ch.details.targetValue} ${activity.unit}` : '📊 High-Score Duel';
   const embed = new EmbedBuilder()
     .setColor(statusColors[ch.state])
     .setTitle(safe(ch.details.title))
     .setDescription(safe(ch.details.rules) || 'Standard community rules.')
     .addFields(
       { name: 'Status', value: statusLabels[ch.state], inline: true },
-      { name: 'Type', value: ch.details.type, inline: true },
+      { name: 'Activity', value: `${activity.emoji} **${activity.name}**\n*${targetLabel}*`, inline: true },
+      { name: 'Track', value: activity.category, inline: true },
       { name: 'Server ID', value: `\`\`\`\n${ch.details.serverId.replace(/[`\r\n]/g, '')}\n\`\`\``, inline: false },
       { name: 'Challenger', value: `<@${ch.issuerId}>`, inline: true },
       { name: 'Opponent', value: ch.opponentId ? `<@${ch.opponentId}>` : (ch.details.targetOpponentId ? `<@${ch.details.targetOpponentId}> (Direct)` : 'Open to anyone'), inline: true }
@@ -159,20 +162,31 @@ export function challengeCard(ch: Challenge) {
   return { embeds: [embed], components: [challengeControls(ch)], allowedMentions: noMentions };
 }
 
-export function challengeModal(targetOpponentId?: string) {
-  const modal = new ModalBuilder().setCustomId('c:form:new').setTitle('Issue Community Challenge');
-  const title = new TextInputBuilder().setCustomId('title').setLabel('Challenge title').setPlaceholder('e.g. 4v4 Outpost Skirmish').setMaxLength(80).setRequired(true).setStyle(TextInputStyle.Short);
-  const serverId = new TextInputBuilder().setCustomId('serverId').setLabel('Server ID (numerical or UUID)').setPlaceholder('e.g. 001-002').setMaxLength(64).setRequired(true).setStyle(TextInputStyle.Short);
-  const type = new TextInputBuilder().setCustomId('type').setLabel('Type (Infantry Skirmish / FOB Race...)').setValue('Infantry Skirmish').setMaxLength(40).setRequired(true).setStyle(TextInputStyle.Short);
-  const rules = new TextInputBuilder().setCustomId('rules').setLabel('Rules / conditions (optional)').setPlaceholder('e.g. No air vehicles, capture Objective A').setMaxLength(300).setRequired(false).setStyle(TextInputStyle.Paragraph);
-  const opponent = new TextInputBuilder().setCustomId('opponent').setLabel('Rival User ID (optional, blank = open)').setPlaceholder('Leave blank for open challenge').setMaxLength(32).setRequired(false).setStyle(TextInputStyle.Short);
-  if (targetOpponentId) opponent.setValue(targetOpponentId);
+export function challengeModal(targetOpponentId?: string, defaultType = 'Infantry Skirmish', defaultTarget?: number) {
+  const customId = targetOpponentId ? `c:form:new:${targetOpponentId}` : 'c:form:new';
+  const modal = new ModalBuilder().setCustomId(customId).setTitle('Issue Community Challenge');
+  const title = new TextInputBuilder().setCustomId('title').setLabel('Challenge title')
+    .setPlaceholder('e.g. 5 C4 Kills Duel or Outpost Skirmish').setMaxLength(80).setRequired(true).setStyle(TextInputStyle.Short);
+  if (defaultTarget && defaultType !== 'Infantry Skirmish') title.setValue(`${defaultTarget} ${defaultType} Challenge`);
+  else if (defaultType !== 'Infantry Skirmish') title.setValue(`${defaultType} Duel`);
+
+  const serverId = new TextInputBuilder().setCustomId('serverId').setLabel('Server ID (numerical or UUID)')
+    .setPlaceholder('e.g. 001-002').setMaxLength(64).setRequired(true).setStyle(TextInputStyle.Short);
+  const type = new TextInputBuilder().setCustomId('type').setLabel('Activity (Grenade Kills, C4, Helis...)')
+    .setValue(defaultType).setMaxLength(40).setRequired(true).setStyle(TextInputStyle.Short);
+  const target = new TextInputBuilder().setCustomId('target').setLabel('Target goal (number, e.g. 5, or leave blank)')
+    .setPlaceholder('Leave blank for high-score duel').setMaxLength(10).setRequired(false).setStyle(TextInputStyle.Short);
+  if (defaultTarget) target.setValue(String(defaultTarget));
+
+  const rules = new TextInputBuilder().setCustomId('rules').setLabel('Rules / conditions (optional)')
+    .setPlaceholder('e.g. Frag grenades only, Sector Alpha only').setMaxLength(300).setRequired(false).setStyle(TextInputStyle.Paragraph);
+
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(title),
     new ActionRowBuilder<TextInputBuilder>().addComponents(serverId),
     new ActionRowBuilder<TextInputBuilder>().addComponents(type),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(rules),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(opponent)
+    new ActionRowBuilder<TextInputBuilder>().addComponents(target),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(rules)
   );
   return modal;
 }
@@ -228,8 +242,8 @@ export function helpMessage(topic: string = 'all') {
       .setDescription('How to issue scrims, challenge rival squads, report results, and compete on the leaderboard.')
       .addFields(
         {
-          name: '1. Issuing a Challenge',
-          value: '• Run `/challenge issue`.\n• *(Optional)* Tag a rival user in `opponent` for a direct duel, or leave empty for an open community challenge.\n• Enter Title, Server ID, Skirmish Type (e.g. *Infantry Skirmish*, *FOB Race*, *Armor Duel*), and custom Rules.'
+          name: '1. Issuing an Activity Challenge',
+          value: '• Run `/challenge issue`.\n• Choose your activity: **Grenade Kills**, **C4 Explosive Kills**, **Spawn Vehicles Destroyed**, **Helicopters Destroyed**, **Vehicles Destroyed**, **Hotzone Kills**, **Combat Revives**, **FOBs Deployed**, etc.\n• Choose format: **Race to Target** (set a goal number, e.g. 5) or **High Score Duel**.\n• *(Optional)* Tag a rival in `opponent` for a direct duel, or leave empty for an open challenge.'
         },
         {
           name: '2. Accepting & Connecting',
