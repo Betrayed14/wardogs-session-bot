@@ -191,7 +191,7 @@ test('payloads stay within Discord row/field limits and suppress user mentions',
   assert.ok(!rendered.includes('@everyone')); assert.ok(!rendered.includes('<@123>'));
   assert.equal(escapeText('**x**'), '\\*\\*x\\*\\*');
   for (const command of commands) assert.equal(command.dm_permission, false);
-  assert.equal(commands.length, 3); store.close();
+  assert.equal(commands.length, 4); store.close();
 });
 test('voice audience proof rejects hidden or restrictive voice channels', () => {
   const view = PermissionFlagsBits.ViewChannel; const connect = PermissionFlagsBits.Connect;

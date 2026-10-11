@@ -1,10 +1,10 @@
-import { ChannelType, MessageFlags, PermissionFlagsBits, type Client, type GuildMember,
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, MessageFlags, PermissionFlagsBits, type Client, type GuildMember,
   type Interaction, type RepliableInteraction, type TextChannel } from 'discord.js';
-import { ATMOSPHERES, FACTIONS, MICROPHONES, PLAYSTYLES, DRAFT_MS, UserError, authorize, id, initialDetails,
+import { ATMOSPHERES, FACTIONS, MICROPHONES, PLAYSTYLES, DRAFT_MS, type Challenge, type ReportOutcome, UserError, authorize, id, initialDetails,
   noMentions, validateChoice, validateTags, type Draft } from './domain.js';
 import { Store } from './store.js';
 import { DiscordTransport, validateVoice } from './discord.js';
-import { browseMessage, card, detailsModal, preview } from './ui.js';
+import { browseMessage, button, card, challengeCard, challengeModal, detailsModal, leaderboardMessage, preview, reportResultButtons } from './ui.js';
 import { Serial, Worker, errorCode, log } from './worker.js';
 
 export class Handler {
@@ -14,6 +14,13 @@ export class Handler {
     if (!interaction.isRepliable()) return;
     try {
       // Opening a modal must be the initial response, so do it without waiting on network work.
+      if (interaction.isChatInputCommand() && interaction.commandName === 'challenge' && interaction.options.getSubcommand() === 'issue') {
+        if (!interaction.guildId) throw new UserError('Issue challenges in your Discord server.');
+        const channelId = this.store.challengeBoard(interaction.guildId) ?? this.store.board(interaction.guildId)?.channelId;
+        if (!channelId) throw new UserError('An administrator must first run /board setup or /challenge setup.');
+        const target = interaction.options.getUser('opponent');
+        await interaction.showModal(challengeModal(target?.id)); return;
+      }
       if ((interaction.isChatInputCommand() && interaction.commandName === 'session' && interaction.options.getSubcommand() === 'create') ||
         (interaction.isButton() && interaction.customId === 'board:create')) {
         if (!interaction.guildId) throw new UserError('Create sessions in your Discord server.');
@@ -105,11 +112,56 @@ export class Handler {
         }, now);
         await i.editReply(browseMessage(view, this.store.results(view, now))); return;
       }
+      if (i.commandName === 'challenge') {
+        const sub = i.options.getSubcommand();
+        if (sub === 'setup') {
+          if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) throw new UserError('Challenge setup requires Manage Guild.');
+          const selected = i.options.getChannel('channel', true);
+          if (selected.type !== ChannelType.GuildText) throw new UserError('Choose a normal text channel.');
+          const chan = await this.transport.channel(selected.id);
+          this.store.setChallengeBoard(i.guildId, chan.id);
+          await i.editReply({ content: `Challenge board configured in <#${chan.id}>.`, allowedMentions: noMentions }); return;
+        }
+        if (sub === 'list') {
+          const active = this.store.challenges(i.guildId).filter(c => ['open', 'accepted'].includes(c.state));
+          const desc = active.map(c => {
+            const url = c.messageId ? `https://discord.com/channels/${c.guildId}/${c.channelId}/${c.messageId}` : '';
+            return `⚔️ **${c.details.title}** (${c.details.type})\nChallenger: <@${c.issuerId}> | Status: ${c.state.toUpperCase()}${url ? ` · [Open Card](${url})` : ''}`;
+          }).join('\n\n') || 'No active challenges right now. Use `/challenge issue` to start one!';
+          const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('Active Community Challenges').setDescription(desc);
+          await i.editReply({ embeds: [embed], allowedMentions: noMentions }); return;
+        }
+        if (sub === 'leaderboard') {
+          await i.editReply(leaderboardMessage(this.store.leaderboard(i.guildId))); return;
+        }
+        throw new UserError('Unknown challenge command.');
+      }
       throw new UserError('Unknown command.');
     }
     if (i.isModalSubmit()) {
       const parts = i.customId.split(':');
       let guildId = i.guildId;
+      if (parts[0] === 'c' && parts[1] === 'form' && parts[2] === 'new') {
+        if (!guildId) throw new UserError('Use this form in your Discord server.');
+        await this.access(guildId, i.user.id);
+        const title = i.fields.getTextInputValue('title');
+        const serverId = i.fields.getTextInputValue('serverId');
+        const type = i.fields.getTextInputValue('type');
+        const rules = i.fields.getTextInputValue('rules');
+        const opponent = i.fields.getTextInputValue('opponent')?.trim() || null;
+        const ch = this.store.createChallenge(guildId, i.user.id, { title, serverId, type, rules, targetOpponentId: opponent }, now);
+        try {
+          const chan = await this.transport.channel(ch.channelId!);
+          const msg = await chan.send(challengeCard(ch));
+          ch.messageId = msg.id;
+          this.store.putChallenge(ch);
+          const url = `https://discord.com/channels/${guildId}/${ch.channelId}/${ch.messageId}`;
+          await i.editReply({ content: `Challenge issued! [View challenge card](${url})`, allowedMentions: noMentions });
+        } catch {
+          await i.editReply({ content: 'Challenge created, but card failed to post. Ensure the bot has Send Messages permission in the board channel.', allowedMentions: noMentions });
+        }
+        return;
+      }
       if (parts[0] === 'f' && parts[1] === 'edit') guildId ??= this.store.session(parts[2])?.guildId ?? null;
       if (parts[0] === 'd') guildId ??= this.store.peekDraft(parts[2])?.guildId ?? null;
       if (!guildId) throw new UserError('Use this form in your Discord server.');
@@ -133,7 +185,7 @@ export class Handler {
       await i.editReply({ ...preview(draft), content: `${validation ? `${validation}\nUse Edit details to correct it.\n` : ''}${preview(draft).content}` }); return;
     }
     if (!(i.isButton() || i.isStringSelectMenu() || i.isChannelSelectMenu())) return;
-    const [prefix, action, objectId] = i.customId.split(':');
+    const [prefix, action, objectId, extra] = i.customId.split(':');
     if (prefix === 'b') {
       if (!i.guildId) throw new UserError('Use /sessions in your Discord server.');
       await this.access(i.guildId, i.user.id);
@@ -193,6 +245,79 @@ export class Handler {
         await this.worker.tick(session.id); await i.editReply({ content: 'Session ended. Its card will be removed; cleanup retries automatically if Discord is unavailable.' }); return;
       }
     }
+    if (prefix === 'c') {
+      const ch = this.store.challenge(objectId);
+      if (!ch) throw new UserError('Challenge not found.');
+      const guildId = i.guildId ?? ch.guildId;
+      if (guildId !== ch.guildId) throw new UserError('This challenge belongs to another Discord server.');
+      const { board, member } = await this.access(guildId, i.user.id);
+      const isMod = !!board.permissionsFor(member)?.has(PermissionFlagsBits.ManageMessages);
+      if (action === 'id') {
+        await i.editReply({ content: `Server ID:\n\`\`\`\n${ch.details.serverId}\n\`\`\`\nIn WARDOGS, open the server browser, choose Join by ID, and enter this ID. Availability is not verified.`, allowedMentions: noMentions }); return;
+      }
+      if (action === 'accept') {
+        const updated = this.store.acceptChallenge(objectId, guildId, i.user.id, now);
+        await this.syncChallengeMessage(updated);
+        await i.editReply({ content: `Challenge accepted! Connect to server ID \`${updated.details.serverId}\` to face <@${updated.issuerId}>. Report results using the button on the challenge card when the match concludes.`, allowedMentions: noMentions }); return;
+      }
+      if (action === 'cancel') {
+        const updated = this.store.withdrawChallenge(objectId, guildId, i.user.id, isMod, now);
+        await this.syncChallengeMessage(updated);
+        await i.editReply({ content: 'Challenge cancelled.', allowedMentions: noMentions }); return;
+      }
+      if (action === 'report') {
+        if (ch.issuerId !== i.user.id && ch.opponentId !== i.user.id)
+          throw new UserError('Only participants in this challenge can report the result.');
+        if (!['accepted', 'disputed'].includes(ch.state))
+          throw new UserError('This challenge is not currently active.');
+        await i.editReply({ content: 'Select the match outcome. Both participants must report to confirm the result.', components: [reportResultButtons(ch.id)] }); return;
+      }
+      if (action === 'outcome') {
+        const outcome = extra as ReportOutcome;
+        if (!['issuer_win', 'opponent_win', 'draw'].includes(outcome)) throw new UserError('Invalid match outcome.');
+        const updated = this.store.reportChallenge(objectId, guildId, i.user.id, outcome, now);
+        await this.syncChallengeMessage(updated);
+        if (updated.state === 'completed') {
+          const winnerText = updated.winnerId === 'draw' ? 'The match ended in a draw.' : `Winner: <@${updated.winnerId}>!`;
+          await i.editReply({ content: `✅ Match result confirmed! ${winnerText}`, components: [], allowedMentions: noMentions });
+        } else if (updated.state === 'disputed') {
+          await i.editReply({ content: '⚠️ Conflicting reports detected! The challenge has been marked as Disputed. A moderator can resolve the dispute using the challenge card.', components: [], allowedMentions: noMentions });
+        } else {
+          await i.editReply({ content: 'Your result report has been submitted. Waiting for the opponent to report.', components: [], allowedMentions: noMentions });
+        }
+        return;
+      }
+      if (action === 'mod') {
+        if (!isMod) throw new UserError('Only moderators can resolve disputed challenges.');
+        if (ch.state !== 'disputed') throw new UserError('This challenge is not disputed.');
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          button(`c:resolve:${ch.id}:issuer_win`, 'Challenger Won', ButtonStyle.Success),
+          button(`c:resolve:${ch.id}:opponent_win`, 'Opponent Won', ButtonStyle.Primary),
+          button(`c:resolve:${ch.id}:draw`, 'Draw / Tie', ButtonStyle.Secondary)
+        );
+        await i.editReply({ content: `Moderator dispute resolution for "${ch.details.title}". Select official outcome:`, components: [row] }); return;
+      }
+      if (action === 'resolve') {
+        if (!isMod) throw new UserError('Only moderators can resolve disputed challenges.');
+        const outcome = extra as ReportOutcome;
+        if (!['issuer_win', 'opponent_win', 'draw'].includes(outcome)) throw new UserError('Invalid match outcome.');
+        const updated = this.store.resolveDispute(objectId, guildId, i.user.id, outcome, now);
+        await this.syncChallengeMessage(updated);
+        const winnerText = updated.winnerId === 'draw' ? 'The match was ruled as a draw.' : `Winner ruled: <@${updated.winnerId}>!`;
+        await i.editReply({ content: `Dispute resolved! ${winnerText}`, components: [], allowedMentions: noMentions }); return;
+      }
+      throw new UserError('Unknown challenge action.');
+    }
     throw new UserError('Unknown action.');
+  }
+  private async syncChallengeMessage(ch: Challenge) {
+    if (!ch.channelId || !ch.messageId) return;
+    try {
+      const channel = await this.transport.channel(ch.channelId);
+      if ('messages' in channel && channel.messages && typeof channel.messages.fetch === 'function') {
+        const msg = await channel.messages.fetch(ch.messageId);
+        await msg.edit(challengeCard(ch));
+      }
+    } catch { /* best effort update */ }
   }
 }

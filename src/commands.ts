@@ -13,4 +13,11 @@ export const commands = [
     .addStringOption(o => o.setName('atmosphere').setDescription('Atmosphere').addChoices(...ATMOSPHERES.map(v => ({ name: v, value: v }))))
     .addStringOption(o => o.setName('playstyle').setDescription('Playstyle').addChoices(...PLAYSTYLES.map(v => ({ name: v, value: v }))))
     .addStringOption(o => o.setName('language').setDescription('Language (exact match, ignoring case)').setMaxLength(40)),
+  new SlashCommandBuilder().setName('challenge').setDescription('Issue or browse community challenges and leaderboard').setDMPermission(false)
+    .addSubcommand(s => s.setName('issue').setDescription('Issue a new challenge to community members')
+      .addUserOption(o => o.setName('opponent').setDescription('Target opponent (optional, leave empty for open challenge)').setRequired(false)))
+    .addSubcommand(s => s.setName('list').setDescription('List active and open challenges'))
+    .addSubcommand(s => s.setName('leaderboard').setDescription('View community challenge rankings'))
+    .addSubcommand(s => s.setName('setup').setDescription('Configure dedicated channel for challenge cards')
+      .addChannelOption(o => o.setName('channel').setDescription('Channel for challenge cards').setRequired(true).addChannelTypes(ChannelType.GuildText))),
 ].map(c => c.toJSON());

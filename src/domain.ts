@@ -8,7 +8,25 @@ export const SESSION_MS = 2 * 60 * 60 * 1000;
 export const DRAFT_MS = 15 * 60 * 1000;
 export const REMINDER_MS = 15 * 60 * 1000;
 export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const CHALLENGE_TYPES = ['Infantry Skirmish', 'FOB Race', 'Vehicle Duel', 'Dogfight', 'Mixed Warfare'] as const;
+export const CHALLENGE_MS = 24 * 60 * 60 * 1000;
 export const noMentions = { parse: [] as never[], repliedUser: false };
+
+export type ChallengeState = 'open' | 'accepted' | 'completed' | 'disputed' | 'withdrawn' | 'expired';
+export type ReportOutcome = 'issuer_win' | 'opponent_win' | 'draw';
+export interface ChallengeDetails {
+  title: string; type: string; serverId: string; rules: string; targetOpponentId: string | null;
+}
+export interface Challenge {
+  id: string; guildId: string; issuerId: string; opponentId: string | null;
+  details: ChallengeDetails; state: ChallengeState; createdAt: number;
+  acceptedAt: number | null; expiresAt: number; closedAt: number | null;
+  reports: Record<string, ReportOutcome>; winnerId: string | null;
+  messageId: string | null; channelId: string | null;
+}
+export interface SquadStats {
+  guildId: string; squadName: string; wins: number; losses: number; draws: number; points: number;
+}
 
 export class UserError extends Error {}
 export interface Details {
@@ -65,6 +83,18 @@ export function validateDetails(details: Details): Details {
   validateTags(result.atmosphere, ATMOSPHERES, 2, 'atmosphere');
   validateTags(result.playstyle, PLAYSTYLES, 3, 'playstyle');
   return result;
+}
+export function initialChallengeDetails(): ChallengeDetails {
+  return { title: '', type: 'Infantry Skirmish', serverId: '', rules: '', targetOpponentId: null };
+}
+export function validateChallengeDetails(details: ChallengeDetails): ChallengeDetails {
+  const title = bounded(details.title, 'Challenge title', 80, true);
+  const serverId = bounded(details.serverId, 'Server ID', 64, true);
+  if (!/^(?:\d+(?:-\d+)*|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(serverId))
+    throw new UserError('Enter a numerical server ID (hyphen-separated digits are accepted), or a community-server UUID.');
+  validateChoice(details.type, CHALLENGE_TYPES, 'challenge type');
+  const rules = bounded(details.rules, 'Rules', 300, false);
+  return { ...details, title, serverId, rules };
 }
 export function authorize(session: Session, guildId: string, userId: string, moderator = false, action = 'manage') {
   if (session.guildId !== guildId || (session.ownerId !== userId && !(moderator && action === 'end')))

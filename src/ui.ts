@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ChannelType, EmbedBuilder,
   ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { ATMOSPHERES, FACTIONS, MICROPHONES, PLAYSTYLES, escapeText, noMentions, paginate,
-  type Browse, type Details, type Draft, type Session } from './domain.js';
+  type Browse, type Challenge, type Details, type Draft, type Session, type SquadStats } from './domain.js';
 
 export function button(customId: string, label: string, style = ButtonStyle.Secondary) {
   return new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style);
@@ -92,4 +92,107 @@ export function browseMessage(view: Browse, sessions: Session[], requestedPage =
     components: page.pages > 1 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
       button(`b:${view.id}:${page.page - 1}`, 'Previous').setDisabled(page.page === 0),
       button(`b:${view.id}:${page.page + 1}`, 'Next').setDisabled(page.page === page.pages - 1))] : [], allowedMentions: noMentions };
+}
+export const challengeMarker = (id: string) => `Challenge ${id}`;
+
+export function challengeControls(ch: Challenge) {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (ch.state === 'open') {
+    row.addComponents(
+      button(`c:accept:${ch.id}`, 'Accept Challenge', ButtonStyle.Success),
+      button(`c:cancel:${ch.id}`, 'Withdraw', ButtonStyle.Danger),
+      button(`c:id:${ch.id}`, 'Show Server ID')
+    );
+  } else if (ch.state === 'accepted') {
+    row.addComponents(
+      button(`c:report:${ch.id}`, 'Report Result', ButtonStyle.Primary),
+      button(`c:cancel:${ch.id}`, 'Cancel', ButtonStyle.Danger),
+      button(`c:id:${ch.id}`, 'Show Server ID')
+    );
+  } else if (ch.state === 'disputed') {
+    row.addComponents(
+      button(`c:mod:${ch.id}`, 'Resolve Dispute', ButtonStyle.Danger),
+      button(`c:id:${ch.id}`, 'Show Server ID')
+    );
+  } else {
+    row.addComponents(button(`c:id:${ch.id}`, 'Show Server ID'));
+  }
+  return row;
+}
+
+export function challengeCard(ch: Challenge) {
+  const safe = escapeText;
+  const statusColors: Record<Challenge['state'], number> = {
+    open: 0x5865f2,
+    accepted: 0xe67e22,
+    completed: 0x2ecc71,
+    disputed: 0xe74c3c,
+    withdrawn: 0x95a5a6,
+    expired: 0x7f8c8d
+  };
+  const statusLabels: Record<Challenge['state'], string> = {
+    open: '⚔️ Open Challenge',
+    accepted: '🔥 In Progress',
+    completed: '🏆 Completed',
+    disputed: '⚠️ Disputed (Awaiting Moderator)',
+    withdrawn: 'Cancelled',
+    expired: 'Expired'
+  };
+  const embed = new EmbedBuilder()
+    .setColor(statusColors[ch.state])
+    .setTitle(safe(ch.details.title))
+    .setDescription(safe(ch.details.rules) || 'Standard community rules.')
+    .addFields(
+      { name: 'Status', value: statusLabels[ch.state], inline: true },
+      { name: 'Type', value: ch.details.type, inline: true },
+      { name: 'Server ID', value: `\`\`\`\n${ch.details.serverId.replace(/[`\r\n]/g, '')}\n\`\`\``, inline: false },
+      { name: 'Challenger', value: `<@${ch.issuerId}>`, inline: true },
+      { name: 'Opponent', value: ch.opponentId ? `<@${ch.opponentId}>` : (ch.details.targetOpponentId ? `<@${ch.details.targetOpponentId}> (Direct)` : 'Open to anyone'), inline: true }
+    );
+  if (ch.state === 'completed') {
+    embed.addFields({ name: 'Winner', value: ch.winnerId === 'draw' ? 'Draw' : `<@${ch.winnerId}>`, inline: true });
+  } else if (ch.state === 'accepted') {
+    const reported = Object.keys(ch.reports);
+    embed.addFields({ name: 'Reports', value: reported.length ? `${reported.length}/2 participants reported` : 'Match in progress — report result when done', inline: false });
+  }
+  embed.setFooter({ text: challengeMarker(ch.id) });
+  return { embeds: [embed], components: [challengeControls(ch)], allowedMentions: noMentions };
+}
+
+export function challengeModal(targetOpponentId?: string) {
+  const modal = new ModalBuilder().setCustomId('c:form:new').setTitle('Issue Community Challenge');
+  const title = new TextInputBuilder().setCustomId('title').setLabel('Challenge title').setPlaceholder('e.g. 4v4 Outpost Skirmish').setMaxLength(80).setRequired(true).setStyle(TextInputStyle.Short);
+  const serverId = new TextInputBuilder().setCustomId('serverId').setLabel('Server ID (numerical or UUID)').setPlaceholder('e.g. 001-002').setMaxLength(64).setRequired(true).setStyle(TextInputStyle.Short);
+  const type = new TextInputBuilder().setCustomId('type').setLabel('Type (Infantry Skirmish / FOB Race...)').setValue('Infantry Skirmish').setMaxLength(40).setRequired(true).setStyle(TextInputStyle.Short);
+  const rules = new TextInputBuilder().setCustomId('rules').setLabel('Rules / conditions (optional)').setPlaceholder('e.g. No air vehicles, capture Objective A').setMaxLength(300).setRequired(false).setStyle(TextInputStyle.Paragraph);
+  const opponent = new TextInputBuilder().setCustomId('opponent').setLabel('Rival User ID (optional, blank = open)').setPlaceholder('Leave blank for open challenge').setMaxLength(32).setRequired(false).setStyle(TextInputStyle.Short);
+  if (targetOpponentId) opponent.setValue(targetOpponentId);
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(title),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(serverId),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(type),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(rules),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(opponent)
+  );
+  return modal;
+}
+
+export function reportResultButtons(challengeId: string) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    button(`c:outcome:${challengeId}:issuer_win`, 'Challenger Won', ButtonStyle.Success),
+    button(`c:outcome:${challengeId}:opponent_win`, 'Opponent Won', ButtonStyle.Primary),
+    button(`c:outcome:${challengeId}:draw`, 'Draw / Tie', ButtonStyle.Secondary)
+  );
+}
+
+export function leaderboardMessage(stats: SquadStats[]) {
+  const description = stats.map((s, idx) => {
+    return `**${idx + 1}. <@${s.squadName}>** — **${s.points} pts**\nWins: ${s.wins} | Losses: ${s.losses} | Draws: ${s.draws}`;
+  }).join('\n\n') || 'No challenge results recorded yet. Issue a challenge to get on the leaderboard!';
+  const embed = new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle('🏆 Community Challenge Leaderboard')
+    .setDescription(description)
+    .setFooter({ text: '3 pts per win · 1 pt per draw' });
+  return { embeds: [embed], components: [], allowedMentions: noMentions };
 }
