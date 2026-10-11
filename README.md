@@ -61,10 +61,12 @@ npm start
 | `/session` | `create` | Opens modal and private preview to publish an active squad card | Everyone |
 | `/session` | `manage` | Opens the private management controls for your active card | Everyone |
 | `/sessions` | `[atmosphere] [playstyle] [language]` | Browse and filter active groups with 5-card pages | Everyone |
-| `/challenge` | `issue [opponent:<@user>]` | Post an open community challenge or direct rival duel | Everyone |
+| `/challenge` | `issue [activity] [target] [opponent:<@user>]` | Post a combat activity duel or open challenge (see [CHALLENGES.md](CHALLENGES.md)) | Everyone |
 | `/challenge` | `list` | View currently open and active skirmishes with card links | Everyone |
 | `/challenge` | `leaderboard` | View server leaderboard rankings (+3 win, +1 draw) | Everyone |
 | `/challenge` | `setup channel:<#channel>` | Designate a dedicated channel for challenge cards | `ManageGuild` (Admin) |
+
+> 📖 **Full Activities & Duel Guide**: See [CHALLENGES.md](CHALLENGES.md) for detailed mechanics on Grenade Kills, C4 Kills, Helicopters Destroyed, Spawn Vehicles Destroyed, and all role tracks.
 
 ---
 
